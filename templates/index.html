@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Handwritten Character Recognition</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Handwritten Character Recognition</h1>
+        <form method="POST" enctype="multipart/form-data">
+            <input type="file" name="image" accept="image/*" required>
+            <button type="submit">Predict</button>
+        </form>
+
+        {% if prediction %}
+            <div class="result">
+                <h2>Prediction Result</h2>
+                <p><strong>Predicted Character:</strong> {{ prediction }}</p>
+                <img src="{{ img_path }}" alt="Uploaded Image">
+            </div>
+        {% endif %}
+    </div>
+</body>
+</html>

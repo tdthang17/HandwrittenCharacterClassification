@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Handwritten Character Recognition</title>
+  <link rel="stylesheet" href="/static/style.css">
+
+</head>
+<body>
+  <div class="container">
+    <h1 class="main-title">Handwritten Character Recognition</h1>
+    <div class="main-container">
+      <div class="panel left-panel">
+        <div>
+          <h3 class="section-title">Upload Image</h3>
+          <form id="uploadForm" class="upload-form" enctype="multipart/form-data">
+            <input type="file" id="fileInput" name="image" accept="image/*" class="hidden" />
+            <button type="button" id="uploadBtn" class="upload-btn">
+              <span class="upload-icon"><img style="max-width:50px; opacity: 0.5;" src="/static/Images/Upload.png" alt="upload-icon"></span>
+            </button>
+            <button type="submit" id="uploadPredictBtn" class="hidden">Predict Upload</button>
+          </form>
+        </div>
+
+        <!-- Drawing Section -->
+        <div class="drawing-section">
+          <h3 class="section-title">Draw Character</h3>
+          <div class="canvas-wrapper">
+            <canvas id="drawingCanvas"></canvas>
+          </div>
+
+          <div class="auto-submit-indicator" id="autoSubmitIndicator">
+            <div class="pulse-dot"></div>
+            <span>Auto-submitting in <span id="countdown">2</span>s</span>
+          </div>
+
+          <div class="controls">
+            <button id="clearBtn" type="button" class="btn">Clear</button>
+            <button id="predictBtn" type="button" class="btn">Predict Now</button>
+          </div>
+        </div>
+
+      </div>
+      <div class="panel right-panel">
+        <div>
+          <h3 class="section-title">Image Preview</h3>
+          <div class="preview-container">
+            <img id="previewImage" class="preview-image hidden" alt="Preview" />
+            <div id="previewPlaceholder" class="preview-placeholder">
+            <img style="max-width:50px; opacity: 0.5;" src="/static/Images/empty.png" alt="upload-icon">
+            </div>
+          </div>
+        </div>
+        <div id="resultSection" class="result-section">
+          <h3 class="section-title">Prediction Result</h3>
+          <div class="result-container">
+            <span id="predictionResult" class="prediction-char">?</span>
+            <span class="confidence-info">
+              Confidence: <span id="confidenceValue" class="confidence-value">0%</span>
+            </span>
+          </div>
+          <img id="resultImage" class="result-image hidden" alt="Result" />
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('drawingCanvas');
+    const ctx = canvas.getContext('2d');
+    let isDrawing = false;
+    let autoSubmitTimer = null;
+    let countdownTimer = null;
+    let countdownValue = 2;
+
+    // Auto-submit elements
+    const autoSubmitIndicator = document.getElementById('autoSubmitIndicator');
+    const countdownElement = document.getElementById('countdown');
+
+    function resizeCanvas() {
+      canvas.width = canvas.clientWidth;
+      canvas.height = canvas.clientHeight;
+      clearCanvas();
+    }
+
+    function clearCanvas() {
+      ctx.fillStyle = 'white';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 15;
+      ctx.lineCap = 'round';
+    }
+
+    function startAutoSubmitTimer() {
+      clearAutoSubmitTimer();
+      countdownValue = 2;
+      autoSubmitIndicator.classList.add('active');
+
+      countdownTimer = setInterval(() => {
+        countdownValue--;
+        countdownElement.textContent = countdownValue;
+
+        if (countdownValue <= 0) {
+          clearInterval(countdownTimer);
+          autoSubmitIndicator.classList.remove('active');
+          autoSubmitDrawing();
+        }
+      }, 1000);
+    }
+
+    function clearAutoSubmitTimer() {
+      if (countdownTimer) {
+        clearInterval(countdownTimer);
+        countdownTimer = null;
+      }
+      autoSubmitIndicator.classList.remove('active');
+      countdownValue = 2;
+      countdownElement.textContent = countdownValue;
+    }
+
+    function autoSubmitDrawing() {
+      const imageData = canvas.toDataURL('image/png');
+      sendImageForPrediction(imageData, 'drawing');
+    }
+
+    window.addEventListener('load', resizeCanvas);
+    window.addEventListener('resize', resizeCanvas);
+
+    canvas.addEventListener('mousedown', startDrawing);
+    canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+    canvas.addEventListener('mousemove', draw);
+    canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+    canvas.addEventListener('mouseup', stopDrawing);
+    canvas.addEventListener('touchend', stopDrawing);
+    canvas.addEventListener('mouseout', stopDrawing);
+
+    function startDrawing(e) {
+      isDrawing = true;
+      clearAutoSubmitTimer();
+      draw(e);
+      e.preventDefault();
+    }
+
+    function handleTouchStart(e) {
+      const touch = e.touches[0];
+      const mouseEvent = new MouseEvent('mousedown', {
+        clientX: touch.clientX,
+        clientY: touch.clientY
+      });
+      canvas.dispatchEvent(mouseEvent);
+      e.preventDefault();
+    }
+
+    function handleTouchMove(e) {
+      const touch = e.touches[0];
+      const mouseEvent = new MouseEvent('mousemove', {
+        clientX: touch.clientX,
+        clientY: touch.clientY
+      });
+      canvas.dispatchEvent(mouseEvent);
+      e.preventDefault();
+    }
+
+    function draw(e) {
+      if (!isDrawing) return;
+      const rect = canvas.getBoundingClientRect();
+      const x = (e.clientX || e.touches[0].clientX) - rect.left;
+      const y = (e.clientY || e.touches[0].clientY) - rect.top;
+      ctx.lineTo(x, y);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+    }
+
+    function stopDrawing() {
+      if (isDrawing) {
+        isDrawing = false;
+        ctx.beginPath();
+        updatePreview();
+        startAutoSubmitTimer();
+      }
+    }
+
+    function updatePreview() {
+      const imageData = canvas.toDataURL();
+      const previewImage = document.getElementById('previewImage');
+      const previewPlaceholder = document.getElementById('previewPlaceholder');
+
+      previewImage.src = imageData;
+      previewImage.classList.remove('hidden');
+      previewPlaceholder.style.display = 'none';
+    }
+
+    document.getElementById('clearBtn').addEventListener('click', () => {
+      clearCanvas();
+      clearAutoSubmitTimer();
+      hideResult();
+      hidePreview();
+    });
+
+    function hidePreview() {
+      const previewImage = document.getElementById('previewImage');
+      const previewPlaceholder = document.getElementById('previewPlaceholder');
+
+      previewImage.classList.add('hidden');
+      previewPlaceholder.style.display = 'block';
+    }
+
+    const fileInput = document.getElementById('fileInput');
+    const previewImage = document.getElementById('previewImage');
+    const uploadPredictBtn = document.getElementById('uploadPredictBtn');
+
+    document.getElementById('uploadBtn').addEventListener('click', () => {
+      fileInput.click();
+    });
+
+    fileInput.addEventListener('change', function () {
+      if (this.files && this.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function (e) {
+          previewImage.src = e.target.result;
+          previewImage.classList.remove('hidden');
+          document.getElementById('previewPlaceholder').style.display = 'none';
+          hideResult();
+
+          // Auto-submit uploaded image after a short delay
+          setTimeout(() => {
+            const formData = new FormData();
+            formData.append('image', fileInput.files[0]);
+            sendFormData(formData);
+          }, 500);
+        };
+        reader.readAsDataURL(this.files[0]);
+      }
+    });
+
+    document.getElementById('predictBtn').addEventListener('click', () => {
+      clearAutoSubmitTimer();
+      const imageData = canvas.toDataURL('image/png');
+      sendImageForPrediction(imageData, 'drawing');
+    });
+
+    document.getElementById('uploadForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      if (!fileInput.files[0]) return;
+
+      const formData = new FormData();
+      formData.append('image', fileInput.files[0]);
+
+      sendFormData(formData);
+    });
+
+    function sendImageForPrediction(imageData, source) {
+      showResult('...', 0, null);
+      const formData = new FormData();
+      formData.append('drawing', imageData);
+      sendFormData(formData);
+    }
+
+    function sendFormData(formData) {
+      fetch('/predict', {
+        method: 'POST',
+        body: formData
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.error) throw new Error(data.error);
+        showResult(data.prediction, data.confidence, data.img_path);
+      })
+      .catch(err => {
+        console.error('Error:', err);
+        showResult('Error', 0, null);
+        document.getElementById('confidenceValue').textContent = 'Could not process image';
+      });
+    }
+
+    function showResult(prediction, confidence, imgPath) {
+      document.getElementById('resultSection').classList.add('show');
+      document.getElementById('predictionResult').textContent = prediction;
+      document.getElementById('confidenceValue').textContent = (confidence * 100).toFixed(2) + '%';
+    }
+
+    function hideResult() {
+      document.getElementById('resultSection').classList.remove('show');
+    }
+  </script>
+</body>
+</html>

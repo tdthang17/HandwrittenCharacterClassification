@@ -1,15 +1,19 @@
 import os
+
 from flask import Flask, request, render_template, jsonify
+
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing import image
 import numpy as np
 from PIL import Image
+
 import base64
 import io
 
 app = Flask(__name__)
 UPLOAD_FOLDER = 'static/uploads'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 # Load mô hình đã huấn luyện
@@ -75,6 +79,7 @@ def predict():
         })
 
     return jsonify({'error': 'Could not process image'}), 400
+
 
 
 if __name__ == '__main__':
